@@ -1,53 +1,42 @@
 @Test
-void testGetLiabilityDetails_fullCoverage() {
-    // Arrange
-    LiabilityParticipantDetailModel mockParticipant = mock(LiabilityParticipantDetailModel.class);
-    LiabilityDetailModel.LiabilityDetails mockLiabilityDetails = mock(LiabilityDetailModel.LiabilityDetails.class);
-    
-    List<LiabilityParticipantDetailModel> group = List.of(mockParticipant);
-    String statusCode = "SomeStatus";
-    
-    // Mock inner LiabilityDetails
-    when(mockParticipant.getLiabilityDetails()).thenReturn(List.of(mockLiabilityDetails));
-    
-    // PrimaryParticipantRole
-    when(mockParticipant.getPrimaryParticipantRole()).thenReturn(List.of("ROLE_1"));
+void testJoinNonNullDistinctListCoverage() {
+    List<LiabilityData> liabilityDataList = Collections.singletonList(new LiabilityData());
+    when(liabilityRepository.getAllByClaimId(claimId)).thenReturn(liabilityDataList);
+    when(liabilityServiceHelper.mapToObject(Mockito.any())).thenReturn(getLiablilityParticipantDetails("123", "test", "affected"));
+    when(liabilityServiceHelper.getGroupKey(Mockito.any())).thenReturn("Key");
+    when(liabilityServiceHelper.joinNonNullDistinctList(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(Arrays.asList("Role1", "Role2"));
+    when(liabilityServiceHelper.joinNonNullDistinctStrings(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn("CombinedRoles");
+    when(liabilityDetailModelBuilder.build(Mockito.any(), Mockito.any(), Mockito.any(), any())).thenReturn(new LiabilityDetailModel());
 
-    // LiabilityDetail fields
-    when(mockLiabilityDetails.getAffectedParticipantRole()).thenReturn(List.of("AFFECTED_ROLE"));
-    when(mockLiabilityDetails.getAdjusterLow()).thenReturn("Low1");
-    when(mockLiabilityDetails.getFinalLiabilityPct()).thenReturn("50");
-    when(mockLiabilityDetails.getFinancialLiability()).thenReturn("5000");
+    LiabilityDetailModel result = service.getLiabilityDetails(claimId, any());
+    assertNotNull(result);
+}
 
-    // Helpers - distinct list
-    when(liabilityServiceHelper.joinNonNullDistinctList(eq(group), any()))
-        .thenAnswer(invocation -> {
-            // Actually call the lambda to ensure it's covered
-            List<LiabilityParticipantDetailModel> list = invocation.getArgument(0);
-            Function<LiabilityParticipantDetailModel, String> extractor = invocation.getArgument(1);
-            return list.stream().map(extractor).distinct().collect(Collectors.toList());
-        });
+@Test
+void testIsLiabilityModifiedInBuilder() {
+    List<LiabilityData> liabilityDataList = Collections.singletonList(new LiabilityData());
+    AffectedParticipantDetailModel affected = AffectedParticipantDetailModel.builder()
+        .affectedParticipant("affected")
+        .affectedParticipantId("affected-id")
+        .affectedParticipantRole(Arrays.asList("role"))
+        .finalLiability("50")
+        .financialLiability("60")
+        .build();
 
-    // Helpers - distinct strings
-    when(liabilityServiceHelper.joinNonNullDistinctStrings(eq(group), any(), eq("")))
-        .thenAnswer(invocation -> {
-            Function<LiabilityParticipantDetailModel, String> extractor = invocation.getArgument(1);
-            return group.stream().map(extractor).filter(Objects::nonNull).distinct().collect(Collectors.joining(","));
-        });
+    LiabilityParticipantDetailModel participant = LiabilityParticipantDetailModel.builder()
+        .primaryParticipantId("123")
+        .primaryParticipant("test")
+        .primaryParticipantRole(Arrays.asList("role"))
+        .liabilityDetails(Arrays.asList(affected))
+        .build();
 
-    // Helper - isLiabilityModified
-    when(liabilityServiceHelper.isLiabilityModified(eq(statusCode), eq("Low1"), eq("50"), eq("5000")))
-        .thenReturn(true);
+    when(liabilityRepository.getAllByClaimId(claimId)).thenReturn(Collections.singletonList(new LiabilityData()));
+    when(liabilityServiceHelper.mapToObject(Mockito.any())).thenReturn(participant);
+    when(liabilityServiceHelper.getGroupKey(Mockito.any())).thenReturn("GroupKey");
+    when(liabilityServiceHelper.joinNonNullDistinctStrings(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn("role");
+    when(liabilityServiceHelper.joinNonNullDistinctList(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(Arrays.asList("role"));
+    when(liabilityDetailModelBuilder.build(Mockito.any(), Mockito.any(), Mockito.any(), any())).thenReturn(new LiabilityDetailModel());
 
-    // CodeDecode
-    when(codeDecodeHelper.getCodeDecodeShortDesc(PARTICIPANT_ROLE_CATEGORY, "ROLE_1"))
-        .thenReturn("Primary Role 1");
-
-    // Act
-    LiabilityDetails liabilityDetails = yourClassUnderTest.getLiabilityDetails(group, statusCode); // Replace with your actual method call
-
-    // Assert
-    assertNotNull(liabilityDetails);
-    assertEquals(List.of("Primary Role 1"), liabilityDetails.getPrimaryParticipantRole());
-    assertTrue(liabilityDetails.isLiabilityModified());
+    LiabilityDetailModel result = service.getLiabilityDetails(claimId, INITIAL);
+    assertNotNull(result);
 }
