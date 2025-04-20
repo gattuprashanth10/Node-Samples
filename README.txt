@@ -116,8 +116,7 @@ public class LiabilityServiceTest {
         when(liabilityServiceHelper.mapToObject(any(LiabilityData.class))).thenReturn(mappedParticipant);
         when(liabilityServiceHelper.getGroupKey(mappedParticipant)).thenReturn("Key1");
 
-        when(liabilityServiceHelper.joinNonNullDistinctList(any(), any())).thenReturn(Arrays.asList("P_ROLE1"));
-        when(liabilityServiceHelper.joinNonNullDistinctList(any(), any())).thenReturn(Arrays.asList("A_ROLE1"));
+        when(liabilityServiceHelper.joinNonNullDistinctList(any(), any())).thenReturn(Arrays.asList("P_ROLE1"), Arrays.asList("A_ROLE1")); // Mock roles for this specific case
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("P_ROLE1"))).thenReturn("Primary Decoded");
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("A_ROLE1"))).thenReturn("Affected Decoded");
 
@@ -145,8 +144,8 @@ public class LiabilityServiceTest {
         verify(liabilityServiceHelper, times(1)).getStatusCode("Status");
         verify(liabilityServiceHelper, times(1)).mapToObject(any(LiabilityData.class));
         verify(liabilityServiceHelper, times(1)).getGroupKey(mappedParticipant);
-        verify(liabilityServiceHelper, times(1)).joinNonNullDistinctList(any(), any());
-        verify(liabilityServiceHelper, times(1)).joinNonNullDistinctList(any(), any());
+        verify(liabilityServiceHelper, times(1)).joinNonNullDistinctList(any(), any()); // Primary roles
+        verify(liabilityServiceHelper, times(1)).joinNonNullDistinctList(any(), any()); // Affected roles
         verify(liabilityServiceHelper, times(3)).joinNonNullDistinctStrings(eq(group), any(), eq(EMPTY_STRING));
         verify(service, times(1)).getFinancialLiability(eq(INITIAL), eq(NEGLigence_RULE), eq("50"), eq("50"), eq(Arrays.asList("P_ROLE1")), eq(Arrays.asList("A_ROLE1")));
         verify(service, times(1)).isLiabilityModified(eq(INITIAL), eq("50"), eq("50"), eq("CalculatedLiabilityForSingle"));
@@ -192,7 +191,12 @@ public class LiabilityServiceTest {
         when(liabilityServiceHelper.getGroupKey(mappedParticipant1)).thenReturn("Key1");
         when(liabilityServiceHelper.getGroupKey(mappedParticipant2)).thenReturn("Key2");
 
-        when(liabilityServiceHelper.joinNonNullDistinctList(any(), any())).thenReturn(Arrays.asList("P_ROLE1"), Arrays.asList("A_ROLE1", "A_ROLE2"));
+        when(liabilityServiceHelper.joinNonNullDistinctList(any(), any())).thenReturn(
+            Arrays.asList("P_ROLE1"), // Primary roles for group 1 ([mappedParticipant1])
+            Arrays.asList("A_ROLE1"), // Affected roles for group 1 ([mappedParticipant1])
+            Arrays.asList("P_ROLE1"), // Primary roles for group 2 ([mappedParticipant2])
+            Arrays.asList("A_ROLE2")  // Affected roles for group 2 ([mappedParticipant2])
+        );
 
          when(liabilityServiceHelper.joinNonNullDistinctStrings(any(), any(), eq(EMPTY_STRING))).thenAnswer(invocation -> {
             List<LiabilityParticipantDetailModel> currentGroup = invocation.getArgument(0);
@@ -200,21 +204,31 @@ public class LiabilityServiceTest {
 
             if (currentGroup.get(0).getLiabilityDetails() != null && !currentGroup.get(0).getLiabilityDetails().isEmpty()) {
                  AffectedParticipantDetailModel firstAffected = currentGroup.get(0).getLiabilityDetails().get(0);
-                 if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getAdjusterLow())) return firstAffected.getAdjusterLow();
-                 if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiabilityPct())) return firstAffected.getFinalLiabilityPct();
-                 if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiability())) return firstAffected.getFinalLiability();
+                 // Distinguish based on affected ID within the group's first element
+                 if ("Affected1".equals(firstAffected.getAffectedParticipantId())) {
+                     if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getAdjusterLow())) return "40";
+                     if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiabilityPct())) return "40";
+                     if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiability())) return "Affected1 FinalLiabValue";
+                 } else if ("Affected2".equals(firstAffected.getAffectedParticipantId())) {
+                      if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getAdjusterLow())) return "60";
+                     if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiabilityPct())) return "60";
+                     if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiability())) return "Affected2 FinalLiabValue";
+                 }
             }
              return "Mocked String Value";
         });
 
+        // Mock getFinancialLiability and isLiabilityModified matching the extracted values
         when(service.getFinancialLiability(eq(FINAL), eq(NEGLigence_RULE), eq("40"), eq("40"), eq(Arrays.asList("P_ROLE1")), eq(Arrays.asList("A_ROLE1")))).thenReturn("FL1");
         when(service.isLiabilityModified(eq(FINAL), eq("40"), eq("40"), eq("FL1"))).thenReturn(false);
+
         when(service.getFinancialLiability(eq(FINAL), eq(NEGLigence_RULE), eq("60"), eq("60"), eq(Arrays.asList("P_ROLE1")), eq(Arrays.asList("A_ROLE2")))).thenReturn("FL2");
         when(service.isLiabilityModified(eq(FINAL), eq("60"), eq("60"), eq("FL2"))).thenReturn(true);
 
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("P_ROLE1"))).thenReturn("Primary Decoded");
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("A_ROLE1"))).thenReturn("Affected1 Decoded");
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("A_ROLE2"))).thenReturn("Affected2 Decoded");
+
 
         LiabilityDetailModel expectedResultModel = new LiabilityDetailModel();
         when(liabilityDetailModelBuilder.build(eq("Status"), eq(FINAL), any(List.class), eq(NEGLigence_RULE))).thenReturn(expectedResultModel);
@@ -230,8 +244,8 @@ public class LiabilityServiceTest {
         verify(liabilityServiceHelper, times(1)).getGroupKey(mappedParticipant1);
         verify(liabilityServiceHelper, times(1)).getGroupKey(mappedParticipant2);
 
-        verify(liabilityServiceHelper, times(2)).joinNonNullDistinctList(any(), any());
-        verify(liabilityServiceHelper, times(6)).joinNonNullDistinctStrings(any(), any(), eq(EMPTY_STRING));
+        verify(liabilityServiceHelper, times(4)).joinNonNullDistinctList(any(), any()); // 2 primary + 2 affected calls
+        verify(liabilityServiceHelper, times(6)).joinNonNullDistinctStrings(any(), any(), eq(EMPTY_STRING)); // 3 calls per loop iter * 2 iters = 6
 
         verify(service, times(1)).getFinancialLiability(eq(FINAL), eq(NEGLigence_RULE), eq("40"), eq("40"), eq(Arrays.asList("P_ROLE1")), eq(Arrays.asList("A_ROLE1")));
         verify(service, times(1)).getFinancialLiability(eq(FINAL), eq(NEGLigence_RULE), eq("60"), eq("60"), eq(Arrays.asList("P_ROLE1")), eq(Arrays.asList("A_ROLE2")));
@@ -246,7 +260,7 @@ public class LiabilityServiceTest {
         AffectedParticipantDetailModel expectedAffected1 = AffectedParticipantDetailModel.builder()
                 .affectedParticipantRole(Arrays.asList("Affected1 Decoded"))
                 .affectedParticipant("Affected1 Name")
-                .finalLiability("Mocked String Value")
+                .finalLiability("Affected1 FinalLiabValue")
                 .affectedParticipantId("Affected1")
                 .adjusterLow("40")
                 .adjusterHigh("Affected1 AdjusterHigh")
@@ -256,7 +270,7 @@ public class LiabilityServiceTest {
          AffectedParticipantDetailModel expectedAffected2 = AffectedParticipantDetailModel.builder()
                 .affectedParticipantRole(Arrays.asList("Affected2 Decoded"))
                 .affectedParticipant("Affected2 Name")
-                .finalLiability("Mocked String Value")
+                .finalLiability("Affected2 FinalLiabValue")
                 .affectedParticipantId("Affected2")
                 .adjusterLow("60")
                 .adjusterHigh("Affected2 AdjusterHigh")
@@ -291,43 +305,56 @@ public class LiabilityServiceTest {
         when(liabilityServiceHelper.getGroupKey(mappedParticipant1)).thenReturn("Key1");
         when(liabilityServiceHelper.getGroupKey(mappedParticipant2)).thenReturn("Key2");
 
-         when(liabilityServiceHelper.joinNonNullDistinctList(any(), any())).thenAnswer(invocation -> {
-            List<LiabilityParticipantDetailModel> currentGroup = invocation.getArgument(0);
-            if (currentGroup.get(0).getPrimaryParticipantId().equals("P1")) return Arrays.asList("P_ROLE1");
-             if (currentGroup.get(0).getPrimaryParticipantId().equals("P2")) return Arrays.asList("P_ROLE2");
-             return Collections.emptyList();
-         }).thenAnswer(invocation -> {
-             List<LiabilityParticipantDetailModel> currentGroup = invocation.getArgument(0);
-             if (currentGroup.get(0).getAffectedParticipantId().equals("Affected1")) return Arrays.asList("A_ROLE1");
-             if (currentGroup.get(0).getAffectedParticipantId().equals("Affected2")) return Arrays.asList("A_ROLE2");
-              return Collections.emptyList();
-         });
+         // Corrected mock for joinNonNullDistinctList - using sequential returns for different participant groups
+         when(liabilityServiceHelper.joinNonNullDistinctList(any(), any())).thenReturn(
+            Arrays.asList("P_ROLE1"), // 1st call: primary roles for [mappedParticipant1]
+            Arrays.asList("A_ROLE1"), // 2nd call: affected roles for [mappedParticipant1]
+            Arrays.asList("P_ROLE2"), // 3rd call: primary roles for [mappedParticipant2]
+            Arrays.asList("A_ROLE2")  // 4th call: affected roles for [mappedParticipant2]
+         );
 
+        // Mocking joinNonNullDistinctStrings - distinguishing groups by primary ID in the group
          when(liabilityServiceHelper.joinNonNullDistinctStrings(any(), any(), eq(EMPTY_STRING))).thenAnswer(invocation -> {
             List<LiabilityParticipantDetailModel> currentGroup = invocation.getArgument(0);
              java.util.function.Function<LiabilityParticipantDetailModel, String> mapper = invocation.getArgument(1);
 
-             if (currentGroup.get(0).getLiabilityDetails() != null && !currentGroup.get(0).getLiabilityDetails().isEmpty()) {
-                 AffectedParticipantDetailModel firstAffected = currentGroup.get(0).getLiabilityDetails().get(0);
-                 if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getAdjusterLow())) return firstAffected.getAdjusterLow();
-                 if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiabilityPct())) return firstAffected.getFinalLiabilityPct();
-                 if (mapper.apply(currentGroup.get(0)).equals(firstAffected.getFinalLiability())) return firstAffected.getFinalLiability();
+             LiabilityParticipantDetailModel participantInGroup = currentGroup.get(0);
+             String primaryId = participantInGroup.getPrimaryParticipantId();
+
+             if (participantInGroup.getLiabilityDetails() != null && !participantInGroup.getLiabilityDetails().isEmpty()) {
+                 AffectedParticipantDetailModel firstAffected = participantInGroup.getLiabilityDetails().get(0);
+
+                if ("P1".equals(primaryId)) {
+                     if (mapper.apply(participantInGroup).equals(firstAffected.getAdjusterLow())) return "40";
+                     if (mapper.apply(participantInGroup).equals(firstAffected.getFinalLiabilityPct())) return "40";
+                     if (mapper.apply(participantInGroup).equals(firstAffected.getFinalLiability())) return "Affected1 FinalLiabValue";
+                } else if ("P2".equals(primaryId)) {
+                     if (mapper.apply(participantInGroup).equals(firstAffected.getAdjusterLow())) return "60";
+                     if (mapper.apply(participantInGroup).equals(firstAffected.getFinalLiabilityPct())) return "60";
+                     if (mapper.apply(participantInGroup).equals(firstAffected.getFinalLiability())) return "Affected2 FinalLiabValue";
+                }
              }
              return "Mocked String Value";
         });
 
+
+        // Mock getFinancialLiability and isLiabilityModified matching the extracted values and roles
         when(service.getFinancialLiability(eq(FINAL), eq(NEGLigence_RULE), eq("40"), eq("40"), eq(Arrays.asList("P_ROLE1")), eq(Arrays.asList("A_ROLE1")))).thenReturn("FL1");
         when(service.isLiabilityModified(eq(FINAL), eq("40"), eq("40"), eq("FL1"))).thenReturn(false);
+
         when(service.getFinancialLiability(eq(FINAL), eq(NEGLigence_RULE), eq("60"), eq("60"), eq(Arrays.asList("P_ROLE2")), eq(Arrays.asList("A_ROLE2")))).thenReturn("FL2");
         when(service.isLiabilityModified(eq(FINAL), eq("60"), eq("60"), eq("FL2"))).thenReturn(true);
+
 
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("P_ROLE1"))).thenReturn("Primary1 Decoded");
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("A_ROLE1"))).thenReturn("Affected1 Decoded");
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("P_ROLE2"))).thenReturn("Primary2 Decoded");
         when(codeDecodeHelper.getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("A_ROLE2"))).thenReturn("Affected2 Decoded");
 
+
         LiabilityDetailModel expectedResultModel = new LiabilityDetailModel();
         when(liabilityDetailModelBuilder.build(eq("Status"), eq(FINAL), any(List.class), eq(NEGLigence_RULE))).thenReturn(expectedResultModel);
+
 
         LiabilityDetailModel result = service.getLiabilityDetails(CLAIM_ID, NEGLigence_RULE);
 
@@ -353,11 +380,12 @@ public class LiabilityServiceTest {
         verify(codeDecodeHelper, times(1)).getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("P_ROLE2"));
         verify(codeDecodeHelper, times(1)).getCodeDecodeShortDesc(eq(PARTICIPANT_ROLE_CATEGORY), eq("A_ROLE2"));
 
+
         List<LiabilityParticipantDetailModel> expectedParticipants = new ArrayList<>();
         AffectedParticipantDetailModel expectedAffected1 = AffectedParticipantDetailModel.builder()
                 .affectedParticipantRole(Arrays.asList("Affected1 Decoded"))
                 .affectedParticipant("Affected1 Name")
-                .finalLiability("Mocked String Value")
+                .finalLiability("Affected1 FinalLiabValue")
                 .affectedParticipantId("Affected1")
                 .adjusterLow("40")
                 .adjusterHigh("Affected1 AdjusterHigh")
@@ -375,7 +403,7 @@ public class LiabilityServiceTest {
          AffectedParticipantDetailModel expectedAffected2 = AffectedParticipantDetailModel.builder()
                 .affectedParticipantRole(Arrays.asList("Affected2 Decoded"))
                 .affectedParticipant("Affected2 Name")
-                .finalLiability("Mocked String Value")
+                .finalLiability("Affected2 FinalLiabValue")
                 .affectedParticipantId("Affected2")
                 .adjusterLow("60")
                 .adjusterHigh("Affected2 AdjusterHigh")
@@ -389,6 +417,7 @@ public class LiabilityServiceTest {
                 .primaryParticipantId("P2")
                 .build();
         expectedParticipants.add(expectedParticipantModel2);
+
 
         verify(liabilityDetailModelBuilder, times(1)).build(eq("Status"), eq(FINAL), eq(expectedParticipants), eq(NEGLigence_RULE));
     }
