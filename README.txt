@@ -4,13 +4,10 @@ public void testGetLiabilityDetails1() {
     when(liabilityRepository.getAllByClaimId(claimId)).thenReturn(liabilityDataList);
     when(liabilityServiceHelper.mapToObject(Mockito.any())).thenReturn(getLiablilityParticipantDetails("123", "test", "affteced"));
     when(liabilityServiceHelper.getGroupKey(Mockito.any())).thenReturn("Key");
-    try (MockedStatic<LiabilityServiceHelper> mocked = Mockito.mockStatic(LiabilityServiceHelper.class)) {
-        mocked.when(() -> LiabilityServiceHelper.joinNonNullDistinctStrings(Mockito.any(), Mockito.any(), Mockito.any()))
-              .thenReturn("Roles");
-        mocked.when(() -> LiabilityServiceHelper.joinNonNullDistinctList(Mockito.any(), Mockito.any(), Mockito.any()))
-              .thenReturn(Arrays.asList("Role1", "Role2"));
-    }
+    when(liabilityServiceHelper.joinNonNullDistinctStrings(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn("Roles");
+    when(liabilityServiceHelper.joinNonNullDistinctList(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(Arrays.asList("Role1", "Role2"));
     when(liabilityDetailModelBuilder.build(Mockito.any(),Mockito.any(), Mockito.any(), any())).thenReturn(new LiabilityDetailModel());
+    
     LiabilityDetailModel result = service.getLiabilityDetails(claimId, any());
     assertNotNull(result);
 }
@@ -25,13 +22,10 @@ public void testGetLiabilityDetails11() {
             .thenReturn(getLiablilityParticipantDetails("123", "test", "affected"))
             .thenReturn(getLiablilityParticipantDetails("123", "test-1", "affected1"));
     when(liabilityServiceHelper.getGroupKey(Mockito.any())).thenReturn("Key-1").thenReturn("Key-2");
-    try (MockedStatic<LiabilityServiceHelper> mocked = Mockito.mockStatic(LiabilityServiceHelper.class)) {
-        mocked.when(() -> LiabilityServiceHelper.joinNonNullDistinctStrings(Mockito.any(), Mockito.any(), Mockito.any()))
-              .thenReturn("Roles");
-        mocked.when(() -> LiabilityServiceHelper.joinNonNullDistinctList(Mockito.any(), Mockito.any(), Mockito.any()))
-              .thenReturn(Arrays.asList("Role1", "Role2"));
-    }
+    when(liabilityServiceHelper.joinNonNullDistinctStrings(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn("Roles");
+    when(liabilityServiceHelper.joinNonNullDistinctList(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(Arrays.asList("Role1", "Role2"));
     when(liabilityDetailModelBuilder.build(Mockito.any(), Mockito.any(), Mockito.any(), any())).thenReturn(new LiabilityDetailModel());
+    
     LiabilityDetailModel result = service.getLiabilityDetails(claimId, any());
     assertNotNull(result);
     verify(liabilityDetailModelBuilder, times(1))
