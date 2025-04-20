@@ -10,51 +10,61 @@ public LiabilityDetailModel getLiabilityDetails(String claimId, String negligenc
     Map<String, LiabilityParticipantDetailModel> liabilityModelsMap = new HashMap<>();
 
     for (List<LiabilityParticipantDetailModel> group : groupedDetails.values()) {
+        if (group == null || group.isEmpty()) continue;
+
         List<String> primaryParticipantRoles = group.stream()
-            .map(data -> data.getPrimaryParticipantRole().get(0))
+            .map(data -> safeGet(data.getPrimaryParticipantRole(), 0))
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.toList());
 
         List<String> affectedParticipantRoles = group.stream()
-            .map(data -> data.getLiabilityDetails().get(0).getAffectedParticipantRole().get(0))
+            .map(data -> safeGet(data.getLiabilityDetails(), 0))
+            .map(detail -> safeGet(detail.getAffectedParticipantRole(), 0))
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.toList());
 
         String adjusterLow = group.stream()
-            .map(data -> data.getLiabilityDetails().get(0).getAdjusterLow())
+            .map(data -> safeGet(data.getLiabilityDetails(), 0))
+            .map(LiabilityDetail::getAdjusterLow)
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.joining(""));
 
         String finalLiabilityPct = group.stream()
-            .map(data -> data.getLiabilityDetails().get(0).getFinalLiabilityPct())
+            .map(data -> safeGet(data.getLiabilityDetails(), 0))
+            .map(LiabilityDetail::getFinalLiabilityPct)
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.joining(""));
 
         String finalLiability = group.stream()
-            .map(data -> data.getLiabilityDetails().get(0).getFinalLiability())
+            .map(data -> safeGet(data.getLiabilityDetails(), 0))
+            .map(LiabilityDetail::getFinalLiability)
             .filter(Objects::nonNull)
             .distinct()
             .collect(Collectors.joining(""));
 
-        String financialLiability = getFinancialLiability(statusCode, negligenceRule, adjusterLow, finalLiabilityPct, primaryParticipantRoles, affectedParticipantRoles);
+        String financialLiability = getFinancialLiability(
+            statusCode, negligenceRule, adjusterLow, finalLiabilityPct,
+            primaryParticipantRoles, affectedParticipantRoles
+        );
+
+        LiabilityDetail firstDetail = safeGet(group.get(0).getLiabilityDetails(), 0);
 
         AffectedParticipantDetailModel affectedParticipantDetailModel = AffectedParticipantDetailModel.builder()
-            .affectedParticipantRole(
-                affectedParticipantRoles.stream()
-                    .map(role -> codeDecodeHelper.getCodeDecodeShortDesc(PARTICIPANT_ROLE_CATEGORY, role))
-                    .collect(Collectors.toList())
-            )
-            .affectedParticipant(group.get(0).getLiabilityDetails().get(0).getAffectedParticipant())
+            .affectedParticipantRole(affectedParticipantRoles.stream()
+                .map(role -> codeDecodeHelper.getCodeDecodeShortDesc(PARTICIPANT_ROLE_CATEGORY, role))
+                .collect(Collectors.toList()))
+            .affectedParticipant(firstDetail != null ? firstDetail.getAffectedParticipant() : null)
             .finalLiability(finalLiability)
-            .affectedParticipantId(group.get(0).getLiabilityDetails().get(0).getAffectedParticipantId())
-            .adjusterLow(group.get(0).getLiabilityDetails().get(0).getAdjusterLow())
-            .adjusterHigh(group.get(0).getLiabilityDetails().get(0).getAdjusterHigh())
+            .affectedParticipantId(firstDetail != null ? firstDetail.getAffectedParticipantId() : null)
+            .adjusterLow(firstDetail != null ? firstDetail.getAdjusterLow() : null)
+            .adjusterHigh(firstDetail != null ? firstDetail.getAdjusterHigh() : null)
             .financialLiability(financialLiability)
-            .isLiabilityModified(!StringUtils.isEmpty(financialLiability) && isLiabilityModified(statusCode, adjusterLow, finalLiabilityPct, financialLiability))
+            .isLiabilityModified(!StringUtils.isEmpty(financialLiability) &&
+                isLiabilityModified(statusCode, adjusterLow, finalLiabilityPct, financialLiability))
             .build();
 
         String primaryParticipantId = group.get(0).getPrimaryParticipantId();
@@ -81,4 +91,9 @@ public LiabilityDetailModel getLiabilityDetails(String claimId, String negligenc
 
     List<LiabilityParticipantDetailModel> liabilityModels = new ArrayList<>(liabilityModelsMap.values());
     return liabilityDetailModelBuilder.build(status, statusCode, liabilityModels, negligenceRule);
+}
+
+// Helper to safely get an element from a list
+private <T> T safeGet(List<T> list, int index) {
+    return (list != null && list.size() > index) ? list.get(index) : null;
 }
