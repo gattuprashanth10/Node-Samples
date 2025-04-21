@@ -1,99 +1,102 @@
-public LiabilityDetailModel getLiabilityDetails(String claimId, String negligenceRule) {
-    List<LiabilityData> liabilityData = liabilityRepository.getAllByClaimId(claimId);
-    String status = liabilityServiceHelper.getStatus(liabilityData);
-    String statusCode = liabilityServiceHelper.getStatusCode(status);
+private LiabilityParticipantDetailModel createMockLiabilityParticipantDetailModelWithDetails() {
+        LiabilityParticipantDetailModel mockModel = Mockito.mock(LiabilityParticipantDetailModel.class);
+        List<AffectedParticipantDetailModel> liabilityDetailsList = new ArrayList<>();
+        AffectedParticipantDetailModel mockAffectedDetail = Mockito.mock(AffectedParticipantDetailModel.class);
 
-    Map<String, List<LiabilityParticipantDetailModel>> groupedDetails = liabilityData.stream()
-        .map(liabilityServiceHelper::mapToObject)
-        .collect(Collectors.groupingBy(liabilityServiceHelper::getGroupKey));
+        when(mockAffectedDetail.getAffectedParticipant()).thenReturn("Mock Affected Participant");
+        when(mockAffectedDetail.getAffectedParticipantId()).thenReturn("MockAffectedId");
+        when(mockAffectedDetail.getFinalLiability()).thenReturn("Default Final");
+        when(mockAffectedDetail.getAdjusterLow()).thenReturn("Default Low");
+        when(mockAffectedDetail.getAdjusterHigh()).thenReturn("Default High");
 
-    Map<String, LiabilityParticipantDetailModel> liabilityModelsMap = new HashMap<>();
+        liabilityDetailsList.add(mockAffectedDetail);
+        when(mockModel.getLiabilityDetails()).thenReturn(liabilityDetailsList);
+        when(mockModel.getPrimaryParticipantId()).thenReturn("MockPrimaryId");
+        when(mockModel.getPrimaryParticipant()).thenReturn("Mock Primary Participant");
 
-    for (List<LiabilityParticipantDetailModel> group : groupedDetails.values()) {
-        if (group == null || group.isEmpty()) continue;
-
-        List<String> primaryParticipantRoles = group.stream()
-            .map(data -> safeGet(data.getPrimaryParticipantRole(), 0))
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-
-        List<String> affectedParticipantRoles = group.stream()
-            .map(data -> safeGet(data.getLiabilityDetails(), 0))
-            .map(detail -> safeGet(detail.getAffectedParticipantRole(), 0))
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-
-        String adjusterLow = group.stream()
-            .map(data -> safeGet(data.getLiabilityDetails(), 0))
-            .map(LiabilityDetail::getAdjusterLow)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.joining(""));
-
-        String finalLiabilityPct = group.stream()
-            .map(data -> safeGet(data.getLiabilityDetails(), 0))
-            .map(LiabilityDetail::getFinalLiabilityPct)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.joining(""));
-
-        String finalLiability = group.stream()
-            .map(data -> safeGet(data.getLiabilityDetails(), 0))
-            .map(LiabilityDetail::getFinalLiability)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.joining(""));
-
-        String financialLiability = getFinancialLiability(
-            statusCode, negligenceRule, adjusterLow, finalLiabilityPct,
-            primaryParticipantRoles, affectedParticipantRoles
-        );
-
-        LiabilityDetail firstDetail = safeGet(group.get(0).getLiabilityDetails(), 0);
-
-        AffectedParticipantDetailModel affectedParticipantDetailModel = AffectedParticipantDetailModel.builder()
-            .affectedParticipantRole(affectedParticipantRoles.stream()
-                .map(role -> codeDecodeHelper.getCodeDecodeShortDesc(PARTICIPANT_ROLE_CATEGORY, role))
-                .collect(Collectors.toList()))
-            .affectedParticipant(firstDetail != null ? firstDetail.getAffectedParticipant() : null)
-            .finalLiability(finalLiability)
-            .affectedParticipantId(firstDetail != null ? firstDetail.getAffectedParticipantId() : null)
-            .adjusterLow(firstDetail != null ? firstDetail.getAdjusterLow() : null)
-            .adjusterHigh(firstDetail != null ? firstDetail.getAdjusterHigh() : null)
-            .financialLiability(financialLiability)
-            .isLiabilityModified(!StringUtils.isEmpty(financialLiability) &&
-                isLiabilityModified(statusCode, adjusterLow, finalLiabilityPct, financialLiability))
-            .build();
-
-        String primaryParticipantId = group.get(0).getPrimaryParticipantId();
-
-        if (liabilityModelsMap.containsKey(primaryParticipantId)) {
-            liabilityModelsMap.get(primaryParticipantId).getLiabilityDetails().add(affectedParticipantDetailModel);
-        } else {
-            List<AffectedParticipantDetailModel> affectedParticipantDetailModels = new ArrayList<>();
-            affectedParticipantDetailModels.add(affectedParticipantDetailModel);
-            liabilityModelsMap.put(primaryParticipantId,
-                LiabilityParticipantDetailModel.builder()
-                    .primaryParticipant(group.get(0).getPrimaryParticipant())
-                    .liabilityDetails(affectedParticipantDetailModels)
-                    .primaryParticipantRole(
-                        primaryParticipantRoles.stream()
-                            .map(role -> codeDecodeHelper.getCodeDecodeShortDesc(PARTICIPANT_ROLE_CATEGORY, role))
-                            .collect(Collectors.toList())
-                    )
-                    .primaryParticipantId(primaryParticipantId)
-                    .build()
-            );
-        }
+        return mockModel;
     }
 
-    List<LiabilityParticipantDetailModel> liabilityModels = new ArrayList<>(liabilityModelsMap.values());
-    return liabilityDetailModelBuilder.build(status, statusCode, liabilityModels, negligenceRule);
-}
+    @Test
+    void testGetLiabilityDetails_FinancialLiabilityIsEmpty_CoversBranch() {
 
-// Helper to safely get an element from a list
-private <T> T safeGet(List<T> list, int index) {
-    return (list != null && list.size() > index) ? list.get(index) : null;
-}
+        when(liabilityRepository.getAllByClaimId(claimId)).thenReturn(Collections.singletonList(new LiabilityData()));
+
+        when(liabilityServiceHelper.mapToObject(any())).thenReturn(createMockLiabilityParticipantDetailModelWithDetails());
+        when(liabilityServiceHelper.getGroupKey(any())).thenReturn("groupKey");
+        when(liabilityServiceHelper.joinNonNullDistinctList(anyList(), any())).thenReturn(Arrays.asList("Role1", "Role2"));
+        when(codeDecodeHelper.getCodeDecodeShortDesc(any(), anyString())).thenReturn("Role Description");
+
+
+        when(service.getFinancialLiability(any(), any(), any(), any(), any(), any())).thenReturn("");
+
+        when(liabilityServiceHelper.getStatusCode(any())).thenReturn(INITIAL);
+
+        when(liabilityServiceHelper.joinNonNullDistinctStrings(anyList(), any(), eq(EMPTY_STRING)))
+             .thenReturn("AdjusterLowValue")
+             .thenReturn("FinalPctValue");
+
+        when(liabilityDetailModelBuilder.build(any(), any(), any(), any())).thenReturn(new LiabilityDetailModel());
+
+        service.getLiabilityDetails(claimId, negligenceRule);
+
+        verify(service, never()).isLiabilityModified(any(), any(), any(), any());
+    }
+
+    @Test
+    void testGetLiabilityDetails_FinancialLiabilityNotEmptyAndIsNotModified_CoversBranch() {
+
+        String financialLiabilityValue = "50";
+        String adjusterLowValue = "50";
+        String finalLiabilityPctValue = "75";
+        String statusCode = INITIAL;
+
+        when(liabilityRepository.getAllByClaimId(claimId)).thenReturn(Collections.singletonList(new LiabilityData()));
+        when(liabilityServiceHelper.mapToObject(any())).thenReturn(createMockLiabilityParticipantDetailModelWithDetails());
+        when(liabilityServiceHelper.getGroupKey(any())).thenReturn("groupKey");
+        when(liabilityServiceHelper.joinNonNullDistinctList(anyList(), any())).thenReturn(Arrays.asList("Role1", "Role2"));
+         when(codeDecodeHelper.getCodeDecodeShortDesc(any(), anyString())).thenReturn("Role Description");
+
+        when(service.getFinancialLiability(any(), any(), any(), any(), any(), any())).thenReturn(financialLiabilityValue);
+
+        when(liabilityServiceHelper.getStatusCode(any())).thenReturn(statusCode);
+
+        when(liabilityServiceHelper.joinNonNullDistinctStrings(anyList(), any(), eq(EMPTY_STRING)))
+                .thenReturn(adjusterLowValue)
+                .thenReturn(finalLiabilityPctValue);
+
+        when(liabilityDetailModelBuilder.build(any(), any(), any(), any())).thenReturn(new LiabilityDetailModel());
+
+        service.getLiabilityDetails(claimId, negligenceRule);
+
+        verify(service, times(1)).isLiabilityModified(eq(statusCode), eq(adjusterLowValue), eq(finalLiabilityPctValue), eq(financialLiabilityValue));
+    }
+
+    @Test
+    void testGetLiabilityDetails_FinancialLiabilityNotEmptyAndIsModified_CoversBranch() {
+
+        String financialLiabilityValue = "50";
+        String adjusterLowValue = "60";
+        String finalLiabilityPctValue = "75";
+        String statusCode = INITIAL;
+
+        when(liabilityRepository.getAllByClaimId(claimId)).thenReturn(Collections.singletonList(new LiabilityData()));
+        when(liabilityServiceHelper.mapToObject(any())).thenReturn(createMockLiabilityParticipantDetailModelWithDetails());
+        when(liabilityServiceHelper.getGroupKey(any())).thenReturn("groupKey");
+        when(liabilityServiceHelper.joinNonNullDistinctList(anyList(), any())).thenReturn(Arrays.asList("Role1", "Role2"));
+        when(codeDecodeHelper.getCodeDecodeShortDesc(any(), anyString())).thenReturn("Role Description");
+
+        when(service.getFinancialLiability(any(), any(), any(), any(), any(), any())).thenReturn(financialLiabilityValue);
+
+        when(liabilityServiceHelper.getStatusCode(any())).thenReturn(statusCode);
+
+        when(liabilityServiceHelper.joinNonNullDistinctStrings(anyList(), any(), eq(EMPTY_STRING)))
+                .thenReturn(adjusterLowValue)
+                .thenReturn(finalLiabilityPctValue);
+
+        when(liabilityDetailModelBuilder.build(any(), any(), any(), any())).thenReturn(new LiabilityDetailModel());
+
+        service.getLiabilityDetails(claimId, negligenceRule);
+
+        verify(service, times(1)).isLiabilityModified(eq(statusCode), eq(adjusterLowValue), eq(finalLiabilityPctValue), eq(financialLiabilityValue));
+    }
